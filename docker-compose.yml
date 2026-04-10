@@ -1,0 +1,12 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    working_dir: /var/www/html
+    network_mode: "host"
+    volumes:
+      - ./:/var/www/html
+    # Dev-only: run the built-in Laravel server on the host network.
+    # Access on the server: http://127.0.0.1:8000/admin
+    command: ["bash", "-lc", "php artisan serve --host=127.0.0.1 --port=8000"]
