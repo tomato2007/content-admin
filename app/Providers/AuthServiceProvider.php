@@ -1,26 +1,39 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Providers;
 
-// use Illuminate\Support\Facades\Gate;
+use App\Models\AdminAuditLog;
+use App\Models\PlannedPost;
+use App\Models\PlatformAccount;
+use App\Models\PostingHistory;
+use App\Models\PostingPlan;
+use App\Models\PostingSlot;
+use App\Policies\AdminAuditLogPolicy;
+use App\Policies\PlannedPostPolicy;
+use App\Policies\PlatformAccountPolicy;
+use App\Policies\PostingHistoryPolicy;
+use App\Policies\PostingPlanPolicy;
+use App\Policies\PostingSlotPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
 class AuthServiceProvider extends ServiceProvider
 {
     /**
-     * The model to policy mappings for the application.
-     *
      * @var array<class-string, class-string>
      */
     protected $policies = [
-        //
+        PlatformAccount::class => PlatformAccountPolicy::class,
+        PostingPlan::class => PostingPlanPolicy::class,
+        PostingHistory::class => PostingHistoryPolicy::class,
+        PostingSlot::class => PostingSlotPolicy::class,
+        PlannedPost::class => PlannedPostPolicy::class,
+        AdminAuditLog::class => AdminAuditLogPolicy::class,
     ];
 
-    /**
-     * Register any authentication / authorization services.
-     */
     public function boot(): void
     {
-        //
+        $this->registerPolicies();
     }
 }

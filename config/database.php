@@ -78,6 +78,20 @@ return [
             'sslmode' => 'prefer',
         ],
 
+        'telegram_runtime' => [
+            'driver' => 'pgsql',
+            'host' => env('TELEGRAM_RUNTIME_DB_HOST', env('DB_HOST', '127.0.0.1')),
+            'port' => env('TELEGRAM_RUNTIME_DB_PORT', env('DB_PORT', '5432')),
+            'database' => env('TELEGRAM_RUNTIME_DB_DATABASE', 'postgres'),
+            'username' => env('TELEGRAM_RUNTIME_DB_USERNAME', 'openclaw'),
+            'password' => env('TELEGRAM_RUNTIME_DB_PASSWORD', ''),
+            'charset' => 'utf8',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => env('TELEGRAM_RUNTIME_DB_SCHEMA', 'public'),
+            'sslmode' => env('TELEGRAM_RUNTIME_DB_SSLMODE', 'prefer'),
+        ],
+
         'sqlsrv' => [
             'driver' => 'sqlsrv',
             'url' => env('DATABASE_URL'),
