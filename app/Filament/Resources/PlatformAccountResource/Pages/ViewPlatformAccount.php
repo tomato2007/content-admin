@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\PlatformAccountResource\Pages;
 
+use App\Features\PlatformAccounts\Application\Actions\ConnectTelegramBotAction;
+use App\Features\Publishing\Application\Actions\DryRunPlannedPostAction;
 use App\Filament\Resources\PlatformAccountResource;
 use App\Filament\Resources\PostingPlanResource;
-use App\Models\PostingPlan;
 use App\Models\PlannedPost;
-use App\Services\Publishing\PublishingService;
-use App\Services\Publishing\TelegramConfigValidator;
+use App\Models\PostingPlan;
+use App\Models\User;
+use App\Services\Publishing\PlatformAwarePublishingConfigValidator;
 use Filament\Actions;
+use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 
@@ -22,28 +25,61 @@ class ViewPlatformAccount extends ViewRecord
     {
         return [
             Actions\EditAction::make(),
-            Actions\Action::make('validateTelegramConfig')
-                ->label('Validate Telegram config')
-                ->icon('heroicon-o-shield-check')
-                ->color('gray')
-                ->action(function (): void {
+            Actions\Action::make('connectTelegramBot')
+                ->label(fn (): string => $this->record->hasConnectedTelegramBot() ? 'Reconnect Telegram bot' : 'Connect Telegram bot')
+                ->icon('heroicon-o-key')
+                ->color('warning')
+                ->visible(fn (): bool => $this->record->platform?->driver === 'telegram' && $this->getActor()?->can('update', $this->record) === true)
+                ->form([
+                    Forms\Components\TextInput::make('bot_token')
+                        ->label('Bot token')
+                        ->password()
+                        ->revealable()
+                        ->required()
+                        ->helperText('Paste the token from BotFather. The token is validated with Telegram Bot API and stored encrypted.'),
+                ])
+                ->action(function (array $data): void {
                     try {
-                        $result = app(TelegramConfigValidator::class)->validate($this->record->loadMissing('platform'));
+                        $account = app(ConnectTelegramBotAction::class)->execute(
+                            $this->record,
+                            (string) $data['bot_token'],
+                            $this->getActor(),
+                        );
+
+                        $this->record = $account;
 
                         Notification::make()
-                            ->title('Telegram config is valid')
-                            ->body(trim(implode("\n", [
-                                'Channel key: '.($result['channel_key'] ?? '—'),
-                                'Target: '.($result['target'] ?? '—'),
-                                'Publish mode: '.($result['publish_mode'] ?? '—'),
-                                'Style mode: '.($result['style_mode'] ?? '—'),
-                                'Quiet hours: '.($result['quiet_hours_start'] ?? '—').' → '.($result['quiet_hours_end'] ?? '—'),
-                            ])))
+                            ->title('Telegram bot connected')
+                            ->body(trim(implode("\n", array_filter([
+                                'Bot: '.$account->telegramBotDisplayName(),
+                                'Credentials ref: '.($account->credentials_ref ?? '—'),
+                            ]))))
                             ->success()
                             ->send();
                     } catch (\Throwable $e) {
                         Notification::make()
-                            ->title('Telegram config is invalid')
+                            ->title('Telegram bot connection failed')
+                            ->body($e->getMessage())
+                            ->danger()
+                            ->send();
+                    }
+                }),
+            Actions\Action::make('validatePublishingConfig')
+                ->label('Validate publishing config')
+                ->icon('heroicon-o-shield-check')
+                ->color('gray')
+                ->action(function (): void {
+                    try {
+                        $result = app(PlatformAwarePublishingConfigValidator::class)->validate($this->record->loadMissing('platform'));
+
+                        Notification::make()
+                            ->title('Publishing config is valid')
+                            ->body(trim(implode("\n", $result['summary_lines'] ?? [])))
+                            ->success()
+                            ->send();
+                    } catch (\Throwable $e) {
+                        Notification::make()
+                            ->title('Publishing config is invalid')
                             ->body($e->getMessage())
                             ->danger()
                             ->send();
@@ -57,7 +93,7 @@ class ViewPlatformAccount extends ViewRecord
                 ->action(function (): void {
                     try {
                         $record = $this->record->loadMissing('platform');
-                        $config = app(TelegramConfigValidator::class)->validate($record);
+                        $config = app(PlatformAwarePublishingConfigValidator::class)->validate($record);
 
                         $post = PlannedPost::query()
                             ->where('platform_account_id', $record->getKey())
@@ -74,13 +110,12 @@ class ViewPlatformAccount extends ViewRecord
                             return;
                         }
 
-                        $dryRun = app(PublishingService::class)->dryRun($post);
+                        $dryRun = app(DryRunPlannedPostAction::class)->execute($post);
 
                         Notification::make()
                             ->title($dryRun->eligible ? 'Validate + Dry-run succeeded' : 'Dry-run blocked')
                             ->body(trim(implode("\n", array_filter([
-                                'Channel key: '.($config['channel_key'] ?? '—'),
-                                'Target: '.($config['target'] ?? '—'),
+                                ...($config['summary_lines'] ?? []),
                                 'Post ID: '.$post->getKey(),
                                 'Mode: '.$dryRun->mode,
                                 $dryRun->reason ? 'Reason: '.$dryRun->reason : null,
@@ -111,5 +146,13 @@ class ViewPlatformAccount extends ViewRecord
                 })
                 ->visible(fn (): bool => $this->record->postingPlan !== null),
         ];
+    }
+
+    private function getActor(): User
+    {
+        /** @var User $user */
+        $user = auth()->user();
+
+        return $user;
     }
 }

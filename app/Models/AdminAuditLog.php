@@ -50,10 +50,6 @@ class AdminAuditLog extends Model
         ?array $before = null,
         ?array $after = null,
     ): void {
-        if ($userId === null) {
-            return;
-        }
-
         self::query()->create([
             'user_id' => $userId,
             'platform_account_id' => $platformAccountId,

@@ -4,11 +4,17 @@ declare(strict_types=1);
 
 namespace App\Observers;
 
+use App\Features\PlatformAccounts\Application\Support\PlatformAccountDataValidator;
 use App\Models\AdminAuditLog;
 use App\Models\PlatformAccount;
 
 class PlatformAccountObserver
 {
+    public function saving(PlatformAccount $platformAccount): void
+    {
+        app(PlatformAccountDataValidator::class)->validate($platformAccount);
+    }
+
     public function created(PlatformAccount $platformAccount): void
     {
         $platformAccount->postingPlan()->firstOrCreate(
@@ -29,7 +35,7 @@ class PlatformAccountObserver
             entityType: PlatformAccount::class,
             entityId: $platformAccount->getKey(),
             before: null,
-            after: $platformAccount->fresh()->toArray(),
+            after: $platformAccount->fresh()->auditSnapshot(),
         );
     }
 
@@ -41,8 +47,11 @@ class PlatformAccountObserver
             platformAccountId: $platformAccount->getKey(),
             entityType: PlatformAccount::class,
             entityId: $platformAccount->getKey(),
-            before: $platformAccount->getOriginal(),
-            after: $platformAccount->getChanges(),
+            before: array_intersect_key(
+                $platformAccount->getOriginal(),
+                array_flip(array_keys($platformAccount->auditSnapshot())),
+            ),
+            after: $platformAccount->fresh()->auditSnapshot(),
         );
     }
 }

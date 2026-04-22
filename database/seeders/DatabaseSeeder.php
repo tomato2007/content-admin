@@ -10,8 +10,15 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        $this->call([
+        $seeders = [
             PlatformSeeder::class,
-        ]);
+        ];
+
+        if (app()->environment('local')) {
+            $seeders[] = LocalDevAdminSeeder::class;
+            $seeders[] = LocalDevWorkspaceSeeder::class;
+        }
+
+        $this->call($seeders);
     }
 }

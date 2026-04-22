@@ -4,11 +4,17 @@ declare(strict_types=1);
 
 namespace App\Observers;
 
+use App\Features\PostingPlans\Application\Support\PostingSlotDataValidator;
 use App\Models\AdminAuditLog;
 use App\Models\PostingSlot;
 
 class PostingSlotObserver
 {
+    public function saving(PostingSlot $postingSlot): void
+    {
+        app(PostingSlotDataValidator::class)->validate($postingSlot);
+    }
+
     public function created(PostingSlot $postingSlot): void
     {
         AdminAuditLog::logAction(

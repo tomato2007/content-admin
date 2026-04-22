@@ -45,39 +45,85 @@ class PostingPlanResource extends Resource
                     Forms\Components\TextInput::make('timezone')
                         ->required()
                         ->default('UTC')
+                        ->rule('timezone:all')
+                        ->helperText('Use a valid PHP timezone identifier, for example UTC or Europe/Budapest.')
                         ->maxLength(255),
                     Forms\Components\TimePicker::make('quiet_hours_from')
+                        ->label('Quiet hours from')
                         ->seconds(false),
                     Forms\Components\TimePicker::make('quiet_hours_to')
+                        ->label('Quiet hours to')
                         ->seconds(false),
                     Forms\Components\Toggle::make('is_active')
                         ->label('Plan active'),
                 ])
                 ->columns(2),
             Forms\Components\Section::make('Rules')
-                ->description('Expandable rule bag until we replace it with dedicated UI blocks')
+                ->description('Structured publishing rules stored internally inside the rules JSON bag')
                 ->schema([
-                    Forms\Components\KeyValue::make('rules')
-                        ->keyLabel('Rule')
-                        ->valueLabel('Value')
-                        ->reorderable(),
-                ]),
+                    Forms\Components\TagsInput::make('rules_content_mix')
+                        ->label('Content mix')
+                        ->placeholder('memes')
+                        ->helperText('Examples: memes, stories, reposts. Stored internally as rules.content_mix')
+                        ->columnSpanFull(),
+                    Forms\Components\TextInput::make('rules_max_posts_per_day')
+                        ->label('Max posts per day')
+                        ->numeric()
+                        ->minValue(1),
+                    Forms\Components\Select::make('rules_approval_mode')
+                        ->label('Approval mode')
+                        ->options([
+                            'manual' => 'Manual',
+                            'assisted' => 'Assisted',
+                            'auto' => 'Auto',
+                        ])
+                        ->placeholder('Not set'),
+                    Forms\Components\Placeholder::make('rules_storage_note')
+                        ->label('JSON storage')
+                        ->content('Unknown rule keys remain preserved in JSON storage even though they are no longer edited as raw key/value pairs.')
+                        ->columnSpanFull(),
+                ])
+                ->columns(2),
         ]);
     }
 
     public static function infolist(Infolist $infolist): Infolist
     {
         return $infolist->schema([
-            Section::make('Plan')
+            Section::make('Overview')
                 ->schema([
                     TextEntry::make('platformAccount.title')->label('Platform account'),
                     TextEntry::make('timezone'),
-                    TextEntry::make('quiet_hours_from')->placeholder('—'),
-                    TextEntry::make('quiet_hours_to')->placeholder('—'),
+                    TextEntry::make('plan_status_summary')
+                        ->label('Plan status')
+                        ->state(fn (PostingPlan $record): string => $record->planStatusSummary()),
                     IconEntry::make('is_active')->label('Plan active')->boolean(),
+                    TextEntry::make('next_active_slot')
+                        ->label('Next active slot')
+                        ->state(fn (PostingPlan $record): string => $record->nextActiveSlotLabel()),
+                    TextEntry::make('weekly_cadence_summary')
+                        ->label('Weekly cadence')
+                        ->state(fn (PostingPlan $record): string => $record->weeklyCadenceSummary())
+                        ->columnSpanFull(),
+                    TextEntry::make('quiet_hours_summary')
+                        ->label('Quiet hours')
+                        ->state(fn (PostingPlan $record): string => $record->quietHoursSummary()),
+                    TextEntry::make('publishing_rules_summary')
+                        ->label('Publishing rules')
+                        ->state(fn (PostingPlan $record): string => $record->publishingRulesSummary()),
                     TextEntry::make('slot_count')
                         ->label('Configured slots')
                         ->state(fn (PostingPlan $record): int => $record->postingSlots()->count()),
+                    TextEntry::make('content_mix_summary')
+                        ->label('Content mix')
+                        ->state(fn (PostingPlan $record): string => $record->contentMixSummary()),
+                    TextEntry::make('additional_rules_count')
+                        ->label('Additional hidden rule keys')
+                        ->state(fn (PostingPlan $record): int => $record->additionalRulesCount()),
+                ])
+                ->columns(2),
+            Section::make('Schedule Preview')
+                ->schema([
                     TextEntry::make('upcoming_slots_preview')
                         ->label('Upcoming schedule preview')
                         ->state(fn (PostingPlan $record): string => $record->upcomingSlotsPreview())

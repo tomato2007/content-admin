@@ -10,6 +10,7 @@ use App\Enums\PostingHistoryStatus;
 use App\Models\PlannedPost;
 use App\Models\PostingHistory;
 use App\Services\Publishing\Contracts\PublisherDriverInterface;
+use App\Services\Publishing\Contracts\PublisherDriverResolverInterface;
 use App\Services\Publishing\Data\DryRunResult;
 use App\Services\Publishing\Data\PublishRequest;
 use App\Services\Publishing\Data\PublishResult;
@@ -19,15 +20,14 @@ use RuntimeException;
 class PublishingService
 {
     public function __construct(
-        private readonly PublisherDriverInterface $driver,
-    ) {
-    }
+        private readonly PublisherDriverResolverInterface $publisherDriverResolver,
+    ) {}
 
     public function dryRun(PlannedPost $plannedPost): DryRunResult
     {
         $plannedPost->loadMissing('platformAccount.platform');
 
-        return $this->driver->dryRun(new PublishRequest(
+        return $this->resolveDriver($plannedPost)->dryRun(new PublishRequest(
             plannedPost: $plannedPost,
             platformAccount: $plannedPost->platformAccount,
         ));
@@ -38,27 +38,6 @@ class PublishingService
         $plannedPost->loadMissing('platformAccount.platform');
 
         $idempotencyKey ??= sprintf('planned-post-%d', $plannedPost->getKey());
-
-        $existing = PostingHistory::query()
-            ->where('planned_post_id', $plannedPost->getKey())
-            ->where('idempotency_key', $idempotencyKey)
-            ->where('status', PostingHistoryStatus::Sent)
-            ->latest('id')
-            ->first();
-
-        if ($existing !== null) {
-            return new PublishResult(
-                success: true,
-                status: $existing->status->value,
-                providerMessageId: $existing->provider_message_id,
-                payload: $existing->payload,
-                response: $existing->response,
-                error: $existing->error,
-                sentAt: $existing->sent_at?->toImmutable(),
-                mode: (string) ($existing->payload['mode'] ?? 'text'),
-                externalReference: $existing->idempotency_key,
-            );
-        }
 
         $this->guardCanPublish($plannedPost);
 
@@ -79,7 +58,7 @@ class PublishingService
                 attemptType: $attemptType,
             );
 
-            $result = $this->driver->publish($request);
+            $result = $this->resolveDriver($plannedPost)->publish($request);
 
             PostingHistory::query()->create([
                 'platform_account_id' => $plannedPost->platform_account_id,
@@ -124,5 +103,14 @@ class PublishingService
         if (in_array($plannedPost->status, [PlannedPostStatus::Published, PlannedPostStatus::Cancelled, PlannedPostStatus::Replaced], true)) {
             throw new RuntimeException('This planned post cannot be published in its current state.');
         }
+    }
+
+    private function resolveDriver(PlannedPost $plannedPost): PublisherDriverInterface
+    {
+        if ($plannedPost->platformAccount === null) {
+            throw new RuntimeException('Planned post is not attached to a platform account.');
+        }
+
+        return $this->publisherDriverResolver->resolveForPlatformAccount($plannedPost->platformAccount);
     }
 }

@@ -21,6 +21,14 @@ class PlannedPostObserver
             $plannedPost->updated_by = auth()->id();
         }
 
+        if ($plannedPost->status === null) {
+            $plannedPost->status = PlannedPostStatus::Draft;
+        }
+
+        if ($plannedPost->moderation_status === null) {
+            $plannedPost->moderation_status = ModerationStatus::PendingReview;
+        }
+
         $this->normalizeStatus($plannedPost);
     }
 

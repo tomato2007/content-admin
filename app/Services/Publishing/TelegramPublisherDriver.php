@@ -9,15 +9,22 @@ use App\Services\Publishing\Data\DryRunResult;
 use App\Services\Publishing\Data\PublishRequest;
 use App\Services\Publishing\Data\PublishResult;
 use Carbon\CarbonImmutable;
+use RuntimeException;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
 
 class TelegramPublisherDriver implements PublisherDriverInterface
 {
-    private const SCRIPT_PATH = '/home/serg/.openclaw/workspace/scripts/publish_planned_telegram_post.py';
+    public function __construct(
+        private readonly TelegramBotApiClient $telegramBotApiClient,
+    ) {}
 
     public function dryRun(PublishRequest $request): DryRunResult
     {
+        if ($this->usesDirectBotApi($request)) {
+            return $this->dryRunViaBotApi($request);
+        }
+
         $payload = $this->runScript($request, true);
 
         return new DryRunResult(
@@ -31,6 +38,10 @@ class TelegramPublisherDriver implements PublisherDriverInterface
 
     public function publish(PublishRequest $request): PublishResult
     {
+        if ($this->usesDirectBotApi($request)) {
+            return $this->publishViaBotApi($request);
+        }
+
         $payload = $this->runScript($request, false);
         $success = ($payload['status'] ?? null) === 'posted';
 
@@ -51,6 +62,109 @@ class TelegramPublisherDriver implements PublisherDriverInterface
         );
     }
 
+    private function dryRunViaBotApi(PublishRequest $request): DryRunResult
+    {
+        $text = trim((string) $request->plannedPost->content_text);
+
+        if ($text === '') {
+            return new DryRunResult(
+                eligible: false,
+                mode: 'none',
+                cleanedText: '',
+                reason: 'Planned post has no content text.',
+            );
+        }
+
+        try {
+            $targetChatId = $this->directTargetChatId($request);
+        } catch (RuntimeException $exception) {
+            return new DryRunResult(
+                eligible: false,
+                mode: 'none',
+                cleanedText: $text,
+                reason: $exception->getMessage(),
+                meta: [
+                    'driver' => 'telegram_bot_api',
+                ],
+            );
+        }
+
+        return new DryRunResult(
+            eligible: true,
+            mode: 'text',
+            cleanedText: $text,
+            meta: [
+                'driver' => 'telegram_bot_api',
+                'target' => $targetChatId,
+                'bot_username' => $request->platformAccount->telegram_bot_username,
+                'force' => $request->force,
+            ],
+        );
+    }
+
+    private function publishViaBotApi(PublishRequest $request): PublishResult
+    {
+        $dryRun = $this->dryRunViaBotApi($request);
+
+        if (! $dryRun->eligible) {
+            return new PublishResult(
+                success: false,
+                status: 'failed',
+                payload: [
+                    'cleaned_text' => $dryRun->cleanedText,
+                    'target' => $dryRun->meta['target'] ?? null,
+                ],
+                response: [
+                    'driver' => 'telegram_bot_api',
+                ],
+                error: $dryRun->reason,
+                mode: $dryRun->mode,
+            );
+        }
+
+        try {
+            $message = $this->telegramBotApiClient->sendMessage(
+                $this->botToken($request),
+                $this->directTargetChatId($request),
+                $dryRun->cleanedText,
+            );
+        } catch (RuntimeException $exception) {
+            return new PublishResult(
+                success: false,
+                status: 'failed',
+                payload: [
+                    'cleaned_text' => $dryRun->cleanedText,
+                    'target' => $dryRun->meta['target'] ?? null,
+                ],
+                response: [
+                    'driver' => 'telegram_bot_api',
+                    'error' => $exception->getMessage(),
+                ],
+                error: $exception->getMessage(),
+                mode: $dryRun->mode,
+            );
+        }
+
+        return new PublishResult(
+            success: true,
+            status: 'sent',
+            providerMessageId: (string) $message['message_id'],
+            payload: [
+                'cleaned_text' => $dryRun->cleanedText,
+                'mode' => $dryRun->mode,
+                'target' => $dryRun->meta['target'] ?? null,
+            ],
+            response: [
+                'driver' => 'telegram_bot_api',
+                'message_id' => $message['message_id'],
+                'chat' => $message['chat'],
+            ],
+            sentAt: CarbonImmutable::now(),
+            mode: $dryRun->mode,
+            externalReference: (string) $message['message_id'],
+        );
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -61,7 +175,7 @@ class TelegramPublisherDriver implements PublisherDriverInterface
         $channelKey = (string) ($platformAccount->settings['channel_key'] ?? $platformAccount->external_id);
         $command = [
             'python3',
-            self::SCRIPT_PATH,
+            $this->scriptPath(),
             '--channel-key', $channelKey,
             '--text', (string) $plannedPost->content_text,
         ];
@@ -90,15 +204,7 @@ class TelegramPublisherDriver implements PublisherDriverInterface
             $command[] = '--force';
         }
 
-        $env = array_filter([
-            'PGHOST' => env('TELEGRAM_RUNTIME_DB_HOST', env('DB_HOST')),
-            'PGPORT' => env('TELEGRAM_RUNTIME_DB_PORT', env('DB_PORT')),
-            'PGDATABASE' => env('TELEGRAM_RUNTIME_DB_DATABASE', env('DB_DATABASE')),
-            'PGUSER' => env('TELEGRAM_RUNTIME_DB_USERNAME', env('DB_USERNAME')),
-            'PGPASSWORD' => env('TELEGRAM_RUNTIME_DB_PASSWORD', env('DB_PASSWORD')),
-        ], static fn ($value) => $value !== null && $value !== '');
-
-        $process = new Process($command, base_path(), $env, null, 120);
+        $process = new Process($command, base_path(), $this->runtimeEnvironment(), null, 120);
         $process->run();
 
         if (! $process->isSuccessful()) {
@@ -127,5 +233,77 @@ class TelegramPublisherDriver implements PublisherDriverInterface
         }
 
         return $decoded;
+    }
+
+    private function usesDirectBotApi(PublishRequest $request): bool
+    {
+        return $request->platformAccount->hasConnectedTelegramBot();
+    }
+
+    private function botToken(PublishRequest $request): string
+    {
+        $token = trim((string) $request->platformAccount->telegram_bot_token);
+
+        if ($token === '') {
+            throw new RuntimeException('Telegram bot token is not connected for this platform account.');
+        }
+
+        return $token;
+    }
+
+    private function directTargetChatId(PublishRequest $request): string
+    {
+        $targetChatId = trim((string) ($request->platformAccount->settings['target_chat_id'] ?? ''));
+
+        if ($targetChatId === '') {
+            throw new RuntimeException('Missing settings.target_chat_id for direct Telegram bot publishing.');
+        }
+
+        return $targetChatId;
+    }
+
+    protected function scriptPath(): string
+    {
+        $scriptPath = (string) config('services.telegram.publish_script_path', '');
+
+        if ($scriptPath === '') {
+            throw new RuntimeException('Telegram publish script path is not configured. Set TELEGRAM_PUBLISH_SCRIPT_PATH or keep TELEGRAM_PUBLISHER_DRIVER=null for local development.');
+        }
+
+        if (! is_file($scriptPath)) {
+            throw new RuntimeException(sprintf('Telegram publish script not found at [%s].', $scriptPath));
+        }
+
+        return $scriptPath;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function runtimeEnvironment(): array
+    {
+        $connectionName = (string) config('services.telegram.runtime_connection', 'telegram_runtime');
+        $connection = config(sprintf('database.connections.%s', $connectionName));
+
+        if (! is_array($connection)) {
+            throw new RuntimeException(sprintf('Telegram runtime database connection [%s] is not configured.', $connectionName));
+        }
+
+        $environment = array_filter([
+            'PGHOST' => $connection['host'] ?? null,
+            'PGPORT' => isset($connection['port']) ? (string) $connection['port'] : null,
+            'PGDATABASE' => $connection['database'] ?? null,
+            'PGUSER' => $connection['username'] ?? null,
+            'PGPASSWORD' => $connection['password'] ?? null,
+            'PGSSLMODE' => $connection['sslmode'] ?? null,
+        ], static fn ($value) => $value !== null && $value !== '');
+
+        $searchPath = $connection['search_path'] ?? null;
+
+        if (is_string($searchPath) && $searchPath !== '') {
+            $environment['PGOPTIONS'] = sprintf('-c search_path=%s', $searchPath);
+        }
+
+        return $environment;
     }
 }

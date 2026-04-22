@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Console;
 
 use Illuminate\Console\Scheduling\Schedule;
@@ -12,7 +14,11 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        $schedule
+            ->command('publishing:run-scheduled')
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->name('publishing-run-scheduled');
     }
 
     /**

@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace App\Filament\Resources\PlatformAccountResource\RelationManagers;
 
 use App\Enums\PlatformAccountRole;
-use App\Models\AdminAuditLog;
+use App\Features\PlatformAccounts\Application\Actions\AttachPlatformAccountAdministratorAction;
+use App\Features\PlatformAccounts\Application\Actions\ChangePlatformAccountAdministratorRoleAction;
+use App\Features\PlatformAccounts\Application\Actions\DetachPlatformAccountAdministratorAction;
 use App\Models\PlatformAccount;
 use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
+use RuntimeException;
 
 class UsersRelationManager extends RelationManager
 {
@@ -49,44 +52,50 @@ class UsersRelationManager extends RelationManager
                     ->sortable(),
             ])
             ->headerActions([
-                Tables\Actions\AttachAction::make()
+                Tables\Actions\Action::make('addAdministrator')
                     ->label('Add administrator')
-                    ->preloadRecordSelect()
-                    ->recordSelectSearchColumns(['name', 'email'])
-                    ->form(fn (Tables\Actions\AttachAction $action): array => [
-                        $action->getRecordSelect()
+                    ->icon('heroicon-o-user-plus')
+                    ->form([
+                        Forms\Components\Select::make('user_id')
                             ->label('User')
                             ->searchable()
                             ->preload()
-                            ->optionsQuery(fn (Builder $query): Builder => $query->orderBy('name')->orderBy('email')),
+                            ->options(fn (): array => User::query()
+                                ->whereNotIn('id', $this->getPlatformAccount()->users()->pluck('users.id'))
+                                ->orderBy('name')
+                                ->orderBy('email')
+                                ->get()
+                                ->mapWithKeys(fn (User $user): array => [$user->getKey() => trim($user->name.' <'.$user->email.'>')])
+                                ->all())
+                            ->required(),
                         Forms\Components\Select::make('role')
                             ->options(PlatformAccountRole::options())
                             ->default(PlatformAccountRole::Admin->value)
                             ->required(),
                     ])
                     ->visible(fn (): bool => $this->canManageAdministrators())
-                    ->after(function (array $data): void {
-                        $recordId = $data['recordId'] ?? null;
+                    ->action(function (array $data): void {
+                        $user = User::query()->findOrFail($data['user_id']);
 
-                        if ($recordId === null) {
-                            return;
+                        try {
+                            app(AttachPlatformAccountAdministratorAction::class)->execute(
+                                $this->getPlatformAccount(),
+                                $user,
+                                PlatformAccountRole::from((string) $data['role']),
+                                $this->getActor(),
+                            );
+
+                            Notification::make()
+                                ->title('Administrator added')
+                                ->success()
+                                ->send();
+                        } catch (RuntimeException $exception) {
+                            Notification::make()
+                                ->title('Cannot add administrator')
+                                ->body($exception->getMessage())
+                                ->danger()
+                                ->send();
                         }
-
-                        $user = User::query()->find($recordId);
-
-                        AdminAuditLog::logAction(
-                            action: 'administrator_attached',
-                            userId: auth()->id(),
-                            platformAccountId: $this->getPlatformAccount()->getKey(),
-                            entityType: PlatformAccount::class,
-                            entityId: $this->getPlatformAccount()->getKey(),
-                            before: null,
-                            after: [
-                                'attached_user_id' => $user?->getKey(),
-                                'attached_user_email' => $user?->email,
-                                'role' => $data['role'] ?? null,
-                            ],
-                        );
                     }),
             ])
             ->actions([
@@ -100,44 +109,49 @@ class UsersRelationManager extends RelationManager
                     ])
                     ->fillForm(fn (User $record): array => ['role' => $record->pivot->role])
                     ->action(function (User $record, array $data): void {
-                        $before = ['role' => $record->pivot->role];
+                        try {
+                            app(ChangePlatformAccountAdministratorRoleAction::class)->execute(
+                                $this->getPlatformAccount(),
+                                $record,
+                                PlatformAccountRole::from((string) $data['role']),
+                                $this->getActor(),
+                            );
 
-                        $this->getPlatformAccount()->users()->updateExistingPivot($record->getKey(), [
-                            'role' => $data['role'],
-                        ]);
-
-                        AdminAuditLog::logAction(
-                            action: 'administrator_role_changed',
-                            userId: auth()->id(),
-                            platformAccountId: $this->getPlatformAccount()->getKey(),
-                            entityType: PlatformAccount::class,
-                            entityId: $this->getPlatformAccount()->getKey(),
-                            before: $before,
-                            after: [
-                                'user_id' => $record->getKey(),
-                                'user_email' => $record->email,
-                                'role' => $data['role'],
-                            ],
-                        );
+                            Notification::make()
+                                ->title('Administrator role updated')
+                                ->success()
+                                ->send();
+                        } catch (RuntimeException $exception) {
+                            Notification::make()
+                                ->title('Cannot change administrator role')
+                                ->body($exception->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     })
                     ->visible(fn (): bool => $this->canManageAdministrators()),
                 Tables\Actions\DetachAction::make()
                     ->label('Remove')
                     ->visible(fn (User $record): bool => $this->canManageAdministrators() && $record->getKey() !== auth()->id())
-                    ->after(function (User $record): void {
-                        AdminAuditLog::logAction(
-                            action: 'administrator_detached',
-                            userId: auth()->id(),
-                            platformAccountId: $this->getPlatformAccount()->getKey(),
-                            entityType: PlatformAccount::class,
-                            entityId: $this->getPlatformAccount()->getKey(),
-                            before: [
-                                'detached_user_id' => $record->getKey(),
-                                'detached_user_email' => $record->email,
-                                'role' => $record->pivot->role,
-                            ],
-                            after: null,
-                        );
+                    ->action(function (User $record): void {
+                        try {
+                            app(DetachPlatformAccountAdministratorAction::class)->execute(
+                                $this->getPlatformAccount(),
+                                $record,
+                                $this->getActor(),
+                            );
+
+                            Notification::make()
+                                ->title('Administrator removed')
+                                ->success()
+                                ->send();
+                        } catch (RuntimeException $exception) {
+                            Notification::make()
+                                ->title('Cannot remove administrator')
+                                ->body($exception->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     }),
             ])
             ->bulkActions([])
@@ -162,5 +176,13 @@ class UsersRelationManager extends RelationManager
         $user = auth()->user();
 
         return $user instanceof User && $user->canManageAdministrators($this->getPlatformAccount());
+    }
+
+    private function getActor(): User
+    {
+        /** @var User $user */
+        $user = auth()->user();
+
+        return $user;
     }
 }

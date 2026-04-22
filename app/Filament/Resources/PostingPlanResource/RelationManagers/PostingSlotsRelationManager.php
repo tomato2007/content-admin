@@ -32,7 +32,8 @@ class PostingSlotsRelationManager extends RelationManager
                     6 => 'Saturday',
                     7 => 'Sunday',
                 ])
-                ->required(),
+                ->required()
+                ->helperText('Only one slot per weekday and local time is allowed within the same posting plan.'),
             Forms\Components\TimePicker::make('time_local')
                 ->label('Local time')
                 ->seconds(false)

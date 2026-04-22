@@ -16,6 +16,28 @@ class PlatformAccountAccessTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_user_without_platform_access_cannot_access_admin_panel(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->get('/admin')
+            ->assertForbidden();
+    }
+
+    public function test_local_dev_admin_can_access_admin_panel_without_platform_accounts(): void
+    {
+        config()->set('app.env', 'testing');
+
+        $user = User::factory()->create([
+            'email' => env('LOCAL_DEV_ADMIN_EMAIL', 'admin@local.test'),
+        ]);
+
+        $this->actingAs($user)
+            ->get('/admin')
+            ->assertOk();
+    }
+
     public function test_user_sees_only_their_platform_accounts_on_index(): void
     {
         $owner = User::factory()->create();
@@ -46,6 +68,10 @@ class PlatformAccountAccessTest extends TestCase
 
         $ownedAccount->users()->attach($owner, ['role' => PlatformAccountRole::Owner->value]);
         $foreignAccount->users()->attach($stranger, ['role' => PlatformAccountRole::Owner->value]);
+
+        $this->actingAs($owner)
+            ->get('/admin')
+            ->assertOk();
 
         $this->actingAs($owner)
             ->get(PlatformAccountResource::getUrl('index'))

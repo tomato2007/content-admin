@@ -6,11 +6,17 @@ namespace App\Filament\Resources\PlatformAccountResource\RelationManagers;
 
 use App\Enums\ModerationStatus;
 use App\Enums\PlannedPostStatus;
+use App\Features\PlannedPosts\Application\Actions\ApprovePlannedPostAction;
+use App\Features\PlannedPosts\Application\Actions\ConfirmPlannedPostDeletionAction;
+use App\Features\PlannedPosts\Application\Actions\RejectPlannedPostAction;
+use App\Features\PlannedPosts\Application\Actions\ReplacePlannedPostAction;
+use App\Features\PlannedPosts\Application\Actions\RequestPlannedPostDeletionAction;
+use App\Features\PlannedPosts\Application\Actions\ReschedulePlannedPostAction;
+use App\Features\Publishing\Application\Actions\DryRunPlannedPostAction;
+use App\Features\Publishing\Application\Actions\PublishPlannedPostAction;
 use App\Models\PlannedPost;
 use App\Models\PlatformAccount;
 use App\Models\User;
-use App\Services\PlannedPostWorkflowService;
-use App\Services\Publishing\PublishingService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
@@ -108,7 +114,7 @@ class PlannedPostsRelationManager extends RelationManager
                     ->color('gray')
                     ->action(function (PlannedPost $record): void {
                         try {
-                            $result = app(PublishingService::class)->dryRun($record);
+                            $result = app(DryRunPlannedPostAction::class)->execute($record);
 
                             Notification::make()
                                 ->title($result->eligible ? 'Dry run ready' : 'Dry run blocked')
@@ -140,12 +146,12 @@ class PlannedPostsRelationManager extends RelationManager
                     ])
                     ->action(function (PlannedPost $record, array $data): void {
                         try {
-                            $result = app(PublishingService::class)->publish(
+                            $result = app(PublishPlannedPostAction::class)->execute(
                                 $record,
-                                $this->getActor()->getKey(),
+                                $this->getActor(),
                                 (bool) ($data['force'] ?? false),
                                 'manual',
-                                'planned-post-'.$record->getKey().'-manual'
+                                'planned-post-'.$record->getKey().'-manual',
                             );
 
                             Notification::make()
@@ -182,12 +188,12 @@ class PlannedPostsRelationManager extends RelationManager
                     ])
                     ->action(function (PlannedPost $record, array $data): void {
                         try {
-                            $result = app(PublishingService::class)->publish(
+                            $result = app(PublishPlannedPostAction::class)->execute(
                                 $record,
-                                $this->getActor()->getKey(),
+                                $this->getActor(),
                                 (bool) ($data['force'] ?? false),
                                 'retry',
-                                'planned-post-'.$record->getKey().'-retry-'.now()->timestamp
+                                'planned-post-'.$record->getKey().'-retry-'.now()->timestamp,
                             );
 
                             Notification::make()
@@ -217,8 +223,8 @@ class PlannedPostsRelationManager extends RelationManager
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->action(fn (PlannedPost $record) => app(PlannedPostWorkflowService::class)->approve($record, $this->getActor()))
-                    ->visible(fn (PlannedPost $record): bool => $this->canManageQueue() && in_array($record->moderation_status, [ModerationStatus::PendingReview, ModerationStatus::NeedsReplacement], true)),
+                    ->action(fn (PlannedPost $record) => app(ApprovePlannedPostAction::class)->execute($record, $this->getActor()))
+                    ->visible(fn (PlannedPost $record): bool => $this->canManageQueue() && $record->canApprove()),
                 Tables\Actions\Action::make('reject')
                     ->label('Reject')
                     ->icon('heroicon-o-x-circle')
@@ -228,8 +234,8 @@ class PlannedPostsRelationManager extends RelationManager
                             ->label('Rejection reason')
                             ->rows(3),
                     ])
-                    ->action(fn (PlannedPost $record, array $data) => app(PlannedPostWorkflowService::class)->reject($record, $this->getActor(), $data['notes'] ?? null))
-                    ->visible(fn (PlannedPost $record): bool => $this->canManageQueue() && $record->status !== PlannedPostStatus::Cancelled),
+                    ->action(fn (PlannedPost $record, array $data) => app(RejectPlannedPostAction::class)->execute($record, $this->getActor(), $data['notes'] ?? null))
+                    ->visible(fn (PlannedPost $record): bool => $this->canManageQueue() && $record->canReject()),
                 Tables\Actions\Action::make('requestDelete')
                     ->label('Request delete')
                     ->icon('heroicon-o-trash')
@@ -238,8 +244,8 @@ class PlannedPostsRelationManager extends RelationManager
                             ->label('Reason')
                             ->rows(3),
                     ])
-                    ->action(fn (PlannedPost $record, array $data) => app(PlannedPostWorkflowService::class)->requestDelete($record, $this->getActor(), $data['notes'] ?? null))
-                    ->visible(fn (PlannedPost $record): bool => $this->canManageQueue() && ! in_array($record->moderation_status, [ModerationStatus::DeleteRequested, ModerationStatus::DeleteConfirmed], true)),
+                    ->action(fn (PlannedPost $record, array $data) => app(RequestPlannedPostDeletionAction::class)->execute($record, $this->getActor(), $data['notes'] ?? null))
+                    ->visible(fn (PlannedPost $record): bool => $this->canManageQueue() && $record->canRequestDelete()),
                 Tables\Actions\Action::make('confirmDelete')
                     ->label('Confirm delete')
                     ->icon('heroicon-o-trash')
@@ -250,8 +256,8 @@ class PlannedPostsRelationManager extends RelationManager
                             ->label('Confirmation note')
                             ->rows(3),
                     ])
-                    ->action(fn (PlannedPost $record, array $data) => app(PlannedPostWorkflowService::class)->confirmDelete($record, $this->getActor(), $data['notes'] ?? null))
-                    ->visible(fn (PlannedPost $record): bool => $this->canManageQueue() && $record->moderation_status === ModerationStatus::DeleteRequested),
+                    ->action(fn (PlannedPost $record, array $data) => app(ConfirmPlannedPostDeletionAction::class)->execute($record, $this->getActor(), $data['notes'] ?? null))
+                    ->visible(fn (PlannedPost $record): bool => $this->canManageQueue() && $record->canConfirmDelete()),
                 Tables\Actions\Action::make('replace')
                     ->label('Replace')
                     ->icon('heroicon-o-arrow-path-rounded-square')
@@ -282,8 +288,8 @@ class PlannedPostsRelationManager extends RelationManager
                         'scheduled_at' => $record->scheduled_at,
                         'content_text' => $record->content_text,
                     ])
-                    ->action(fn (PlannedPost $record, array $data) => app(PlannedPostWorkflowService::class)->replace($record, $this->getActor(), $data))
-                    ->visible(fn (PlannedPost $record): bool => $this->canManageQueue() && ! in_array($record->status, [PlannedPostStatus::Published, PlannedPostStatus::Replaced], true)),
+                    ->action(fn (PlannedPost $record, array $data) => app(ReplacePlannedPostAction::class)->execute($record, $this->getActor(), $data))
+                    ->visible(fn (PlannedPost $record): bool => $this->canManageQueue() && $record->canReplace()),
                 Tables\Actions\Action::make('reschedule')
                     ->label('Reschedule')
                     ->icon('heroicon-o-calendar')
@@ -296,8 +302,8 @@ class PlannedPostsRelationManager extends RelationManager
                             ->rows(3),
                     ])
                     ->fillForm(fn (PlannedPost $record): array => ['scheduled_at' => $record->scheduled_at])
-                    ->action(fn (PlannedPost $record, array $data) => app(PlannedPostWorkflowService::class)->reschedule($record, $this->getActor(), (string) $data['scheduled_at'], $data['notes'] ?? null))
-                    ->visible(fn (PlannedPost $record): bool => $this->canManageQueue() && ! in_array($record->status, [PlannedPostStatus::Cancelled, PlannedPostStatus::Published], true)),
+                    ->action(fn (PlannedPost $record, array $data) => app(ReschedulePlannedPostAction::class)->execute($record, $this->getActor(), (string) $data['scheduled_at'], $data['notes'] ?? null))
+                    ->visible(fn (PlannedPost $record): bool => $this->canManageQueue() && $record->canReschedule()),
             ])
             ->bulkActions([])
             ->defaultSort('scheduled_at', 'desc');

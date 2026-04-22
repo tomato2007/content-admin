@@ -42,7 +42,7 @@ class User extends Authenticatable implements FilamentUser
 
     public function canAccessPanel(Panel $panel): bool
     {
-        return true;
+        return $this->isLocalDevPanelAdmin() || $this->platformAccounts()->exists();
     }
 
     public function hasAccessToPlatformAccount(PlatformAccount $platformAccount): bool
@@ -76,5 +76,16 @@ class User extends Authenticatable implements FilamentUser
             ->first()?->pivot?->role;
 
         return $role !== null ? PlatformAccountRole::from($role) : null;
+    }
+
+    private function isLocalDevPanelAdmin(): bool
+    {
+        if (! app()->environment(['local', 'testing'])) {
+            return false;
+        }
+
+        $localDevAdminEmail = (string) env('LOCAL_DEV_ADMIN_EMAIL', 'admin@local.test');
+
+        return $localDevAdminEmail !== '' && $this->email === $localDevAdminEmail;
     }
 }

@@ -9,6 +9,7 @@ use App\Filament\Resources\PlatformAccountResource\RelationManagers\AdminAuditLo
 use App\Filament\Resources\PlatformAccountResource\RelationManagers\PlannedPostsRelationManager;
 use App\Filament\Resources\PlatformAccountResource\RelationManagers\PostingHistoryRelationManager;
 use App\Filament\Resources\PlatformAccountResource\RelationManagers\UsersRelationManager;
+use App\Models\Platform;
 use App\Models\PlatformAccount;
 use App\Models\User;
 use Filament\Forms;
@@ -65,11 +66,11 @@ class PlatformAccountResource extends Resource
                 ->columns(2),
             Forms\Components\Section::make('Telegram publishing')
                 ->description('Telegram-specific publishing configuration for this platform account')
-                ->visible(fn (Forms\Get $get): bool => (int) ($get('platform_id') ?? 0) > 0)
+                ->visible(fn (Forms\Get $get): bool => static::selectedPlatformDriver($get) === 'telegram')
                 ->schema([
                     Forms\Components\TextInput::make('settings.channel_key')
                         ->label('Channel key')
-                        ->helperText('Key from telegram_channel_configs, for example humor-story-mems-v2')
+                        ->helperText('Key from the configured Telegram runtime channel config table, for example humor-story-mems-v2')
                         ->maxLength(255),
                     Forms\Components\TextInput::make('settings.target_chat_id')
                         ->label('Target chat / channel')
@@ -79,6 +80,43 @@ class PlatformAccountResource extends Resource
                         ->label('Default source chat')
                         ->helperText('Optional default source chat for media lookup when planned post snapshot does not include it')
                         ->maxLength(255),
+                    Forms\Components\Toggle::make('settings.force_publish')
+                        ->label('Allow force publish outside quiet hours')
+                        ->default(false),
+                ])
+                ->columns(2),
+            Forms\Components\Section::make('VK publishing')
+                ->description('VK-specific publishing configuration for this platform account')
+                ->visible(fn (Forms\Get $get): bool => static::selectedPlatformDriver($get) === 'vk')
+                ->schema([
+                    Forms\Components\TextInput::make('settings.community_id')
+                        ->label('Community ID')
+                        ->helperText('Numeric VK owner/group identifier, for example -123456789')
+                        ->maxLength(255),
+                    Forms\Components\TextInput::make('settings.screen_name')
+                        ->label('Screen name')
+                        ->helperText('Optional VK screen name for operator context')
+                        ->maxLength(255),
+                    Forms\Components\Toggle::make('settings.force_publish')
+                        ->label('Allow force publish outside quiet hours')
+                        ->default(false),
+                ])
+                ->columns(2),
+            Forms\Components\Section::make('X publishing')
+                ->description('X-specific publishing configuration for this platform account')
+                ->visible(fn (Forms\Get $get): bool => static::selectedPlatformDriver($get) === 'x')
+                ->schema([
+                    Forms\Components\TextInput::make('settings.account_username')
+                        ->label('Account username')
+                        ->helperText('X handle, with or without @')
+                        ->maxLength(255),
+                    Forms\Components\Select::make('settings.thread_mode')
+                        ->label('Thread mode')
+                        ->options([
+                            'single' => 'Single post',
+                            'thread' => 'Thread',
+                        ])
+                        ->placeholder('Single post'),
                     Forms\Components\Toggle::make('settings.force_publish')
                         ->label('Allow force publish outside quiet hours')
                         ->default(false),
@@ -132,6 +170,7 @@ class PlatformAccountResource extends Resource
                 ])
                 ->columns(2),
             Section::make('Telegram publishing config')
+                ->visible(fn (PlatformAccount $record): bool => $record->platform?->driver === 'telegram')
                 ->schema([
                     TextEntry::make('settings.channel_key')
                         ->label('Channel key')
@@ -143,6 +182,43 @@ class PlatformAccountResource extends Resource
                         ->label('Default source chat')
                         ->placeholder('—'),
                     IconEntry::make('telegram_force_publish')
+                        ->label('Force publish outside quiet hours')
+                        ->state(fn (PlatformAccount $record): bool => (bool) ($record->settings['force_publish'] ?? false))
+                        ->boolean(),
+                    TextEntry::make('telegram_bot_display_name')
+                        ->label('Connected bot')
+                        ->state(fn (PlatformAccount $record): string => $record->telegramBotDisplayName()),
+                    TextEntry::make('telegram_bot_connected_at')
+                        ->label('Bot connected at')
+                        ->dateTime()
+                        ->placeholder('—'),
+                ])
+                ->columns(2),
+            Section::make('VK publishing config')
+                ->visible(fn (PlatformAccount $record): bool => $record->platform?->driver === 'vk')
+                ->schema([
+                    TextEntry::make('settings.community_id')
+                        ->label('Community ID')
+                        ->placeholder('—'),
+                    TextEntry::make('settings.screen_name')
+                        ->label('Screen name')
+                        ->placeholder('—'),
+                    IconEntry::make('vk_force_publish')
+                        ->label('Force publish outside quiet hours')
+                        ->state(fn (PlatformAccount $record): bool => (bool) ($record->settings['force_publish'] ?? false))
+                        ->boolean(),
+                ])
+                ->columns(2),
+            Section::make('X publishing config')
+                ->visible(fn (PlatformAccount $record): bool => $record->platform?->driver === 'x')
+                ->schema([
+                    TextEntry::make('settings.account_username')
+                        ->label('Account username')
+                        ->placeholder('—'),
+                    TextEntry::make('settings.thread_mode')
+                        ->label('Thread mode')
+                        ->placeholder('single'),
+                    IconEntry::make('x_force_publish')
                         ->label('Force publish outside quiet hours')
                         ->state(fn (PlatformAccount $record): bool => (bool) ($record->settings['force_publish'] ?? false))
                         ->boolean(),
@@ -269,5 +345,18 @@ class PlatformAccountResource extends Resource
             'view' => Pages\ViewPlatformAccount::route('/{record}'),
             'edit' => Pages\EditPlatformAccount::route('/{record}/edit'),
         ];
+    }
+
+    private static function selectedPlatformDriver(Forms\Get $get): ?string
+    {
+        $platformId = $get('platform_id');
+
+        if (! is_numeric($platformId)) {
+            return null;
+        }
+
+        return Platform::query()
+            ->whereKey((int) $platformId)
+            ->value('driver');
     }
 }

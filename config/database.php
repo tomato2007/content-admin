@@ -15,7 +15,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'mysql'),
+    'default' => env('DB_CONNECTION', 'pgsql'),
 
     /*
     |--------------------------------------------------------------------------
@@ -66,30 +66,46 @@ return [
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DATABASE_URL'),
-            'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '5432'),
-            'database' => env('DB_DATABASE', 'forge'),
-            'username' => env('DB_USERNAME', 'forge'),
-            'password' => env('DB_PASSWORD', ''),
+            'host' => env('DB_HOST', env('PGHOST', '127.0.0.1')),
+            'port' => env('DB_PORT', env('PGPORT', '5432')),
+            'database' => env('DB_DATABASE', env('PGDATABASE', 'forge')),
+            'username' => env('DB_USERNAME', env('PGUSER', 'forge')),
+            'password' => env('DB_PASSWORD', env('PGPASSWORD', '')),
             'charset' => 'utf8',
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => 'public',
-            'sslmode' => 'prefer',
+            'search_path' => env('DB_SCHEMA', 'public'),
+            'sslmode' => env('DB_SSLMODE', env('PGSSLMODE', 'disable')),
         ],
 
         'telegram_runtime' => [
             'driver' => 'pgsql',
-            'host' => env('TELEGRAM_RUNTIME_DB_HOST', env('DB_HOST', '127.0.0.1')),
-            'port' => env('TELEGRAM_RUNTIME_DB_PORT', env('DB_PORT', '5432')),
-            'database' => env('TELEGRAM_RUNTIME_DB_DATABASE', 'postgres'),
-            'username' => env('TELEGRAM_RUNTIME_DB_USERNAME', 'openclaw'),
-            'password' => env('TELEGRAM_RUNTIME_DB_PASSWORD', ''),
+            'url' => env('TELEGRAM_RUNTIME_DATABASE_URL'),
+            'host' => env('TELEGRAM_RUNTIME_DB_HOST', env('PGHOST', env('DB_HOST', '127.0.0.1'))),
+            'port' => env('TELEGRAM_RUNTIME_DB_PORT', env('PGPORT', env('DB_PORT', '5432'))),
+            'database' => env('TELEGRAM_RUNTIME_DB_DATABASE', env('PGDATABASE', env('DB_DATABASE', 'postgres'))),
+            'username' => env('TELEGRAM_RUNTIME_DB_USERNAME', env('PGUSER', env('DB_USERNAME', 'forge'))),
+            'password' => env('TELEGRAM_RUNTIME_DB_PASSWORD', env('PGPASSWORD', env('DB_PASSWORD', ''))),
             'charset' => 'utf8',
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => env('TELEGRAM_RUNTIME_DB_SCHEMA', 'public'),
-            'sslmode' => env('TELEGRAM_RUNTIME_DB_SSLMODE', 'prefer'),
+            'search_path' => env('TELEGRAM_RUNTIME_DB_SCHEMA', env('DB_SCHEMA', 'public')),
+            'sslmode' => env('TELEGRAM_RUNTIME_DB_SSLMODE', env('PGSSLMODE', env('DB_SSLMODE', 'disable'))),
+        ],
+
+        'posts_source' => [
+            'driver' => 'pgsql',
+            'url' => env('POSTS_SOURCE_DATABASE_URL'),
+            'host' => env('POSTS_SOURCE_DB_HOST', env('PGHOST', '127.0.0.1')),
+            'port' => env('POSTS_SOURCE_DB_PORT', env('PGPORT', '5432')),
+            'database' => env('POSTS_SOURCE_DB_DATABASE', 'anecdots'),
+            'username' => env('POSTS_SOURCE_DB_USERNAME', env('PGUSER', env('DB_USERNAME', 'forge'))),
+            'password' => env('POSTS_SOURCE_DB_PASSWORD', env('PGPASSWORD', env('DB_PASSWORD', ''))),
+            'charset' => 'utf8',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => env('POSTS_SOURCE_DB_SCHEMA', 'public'),
+            'sslmode' => env('POSTS_SOURCE_DB_SSLMODE', env('PGSSLMODE', env('DB_SSLMODE', 'disable'))),
         ],
 
         'sqlsrv' => [

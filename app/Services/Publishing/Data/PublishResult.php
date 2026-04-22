@@ -22,6 +22,5 @@ final class PublishResult
         public readonly ?CarbonImmutable $sentAt = null,
         public readonly string $mode = 'text',
         public readonly ?string $externalReference = null,
-    ) {
-    }
+    ) {}
 }

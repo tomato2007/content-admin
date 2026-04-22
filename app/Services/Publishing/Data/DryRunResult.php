@@ -15,6 +15,5 @@ final class DryRunResult
         public readonly string $cleanedText,
         public readonly ?string $reason = null,
         public readonly array $meta = [],
-    ) {
-    }
+    ) {}
 }

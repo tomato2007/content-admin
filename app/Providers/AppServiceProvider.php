@@ -12,22 +12,23 @@ use App\Observers\PlannedPostObserver;
 use App\Observers\PlatformAccountObserver;
 use App\Observers\PostingPlanObserver;
 use App\Observers\PostingSlotObserver;
-use App\Services\Publishing\Contracts\PublisherDriverInterface;
+use App\Services\Publishing\Contracts\PublisherDriverResolverInterface;
 use App\Services\Publishing\NullPublisherDriver;
+use App\Services\Publishing\PlatformAwarePublisherDriverResolver;
 use App\Services\Publishing\TelegramPublisherDriver;
+use App\Services\Publishing\VkPublisherDriver;
+use App\Services\Publishing\XPublisherDriver;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind(PublisherDriverInterface::class, function () {
-            $platformDriver = config('services.telegram.publisher_driver');
-
-            return $platformDriver === 'real'
-                ? new TelegramPublisherDriver()
-                : new NullPublisherDriver();
-        });
+        $this->app->singleton(TelegramPublisherDriver::class);
+        $this->app->singleton(NullPublisherDriver::class);
+        $this->app->singleton(VkPublisherDriver::class);
+        $this->app->singleton(XPublisherDriver::class);
+        $this->app->singleton(PublisherDriverResolverInterface::class, PlatformAwarePublisherDriverResolver::class);
     }
 
     public function boot(): void

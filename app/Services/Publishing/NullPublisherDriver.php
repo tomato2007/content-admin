@@ -30,7 +30,7 @@ class NullPublisherDriver implements PublisherDriverInterface
             mode: 'text',
             cleanedText: $text,
             meta: [
-                'driver' => 'null',
+                'driver' => $this->driverKey(),
                 'platform' => $request->platformAccount->platform->driver ?? null,
                 'force' => $request->force,
             ],
@@ -63,12 +63,22 @@ class NullPublisherDriver implements PublisherDriverInterface
                 'force' => $request->force,
             ],
             response: [
-                'driver' => 'null',
-                'message' => 'Stub publish completed. Replace NullPublisherDriver with a real platform driver.',
+                'driver' => $this->driverKey(),
+                'message' => $this->successMessage(),
             ],
             sentAt: CarbonImmutable::now(),
             mode: $dryRun->mode,
             externalReference: $request->idempotencyKey,
         );
+    }
+
+    protected function driverKey(): string
+    {
+        return 'null';
+    }
+
+    protected function successMessage(): string
+    {
+        return 'Stub publish completed. Replace NullPublisherDriver with a real platform driver.';
     }
 }

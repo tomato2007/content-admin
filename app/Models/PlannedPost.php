@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\ModerationStatus;
 use App\Enums\PlannedPostStatus;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -91,5 +92,68 @@ class PlannedPost extends Model
         return mb_strlen($text) > $limit
             ? mb_substr($text, 0, $limit - 1).'…'
             : $text;
+    }
+
+    public function isTerminalStatus(): bool
+    {
+        return in_array($this->status, [
+            PlannedPostStatus::Published,
+            PlannedPostStatus::Cancelled,
+            PlannedPostStatus::Replaced,
+        ], true);
+    }
+
+    public function canApprove(): bool
+    {
+        return ! $this->isTerminalStatus()
+            && in_array($this->moderation_status, [
+                ModerationStatus::PendingReview,
+                ModerationStatus::NeedsReplacement,
+            ], true);
+    }
+
+    public function canReject(): bool
+    {
+        return ! $this->isTerminalStatus()
+            && in_array($this->moderation_status, [
+                ModerationStatus::PendingReview,
+                ModerationStatus::NeedsReplacement,
+                ModerationStatus::Approved,
+                ModerationStatus::DeleteRequested,
+            ], true);
+    }
+
+    public function canRequestDelete(): bool
+    {
+        return ! $this->isTerminalStatus()
+            && ! in_array($this->moderation_status, [
+                ModerationStatus::DeleteRequested,
+                ModerationStatus::DeleteConfirmed,
+            ], true);
+    }
+
+    public function canConfirmDelete(): bool
+    {
+        return ! $this->isTerminalStatus()
+            && $this->moderation_status === ModerationStatus::DeleteRequested;
+    }
+
+    public function canReplace(): bool
+    {
+        return ! $this->isTerminalStatus();
+    }
+
+    public function canReschedule(): bool
+    {
+        return ! $this->isTerminalStatus();
+    }
+
+    public function canAutoPublish(CarbonImmutable $now): bool
+    {
+        return $this->status === PlannedPostStatus::Scheduled
+            && $this->moderation_status === ModerationStatus::Approved
+            && $this->scheduled_at !== null
+            && $this->scheduled_at->toImmutable()->lessThanOrEqualTo($now)
+            && $this->platformAccount?->is_enabled === true;
     }
 }

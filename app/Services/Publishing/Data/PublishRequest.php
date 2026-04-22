@@ -16,6 +16,5 @@ final class PublishRequest
         public readonly ?int $triggeredByUserId = null,
         public readonly ?string $idempotencyKey = null,
         public readonly string $attemptType = 'manual',
-    ) {
-    }
+    ) {}
 }

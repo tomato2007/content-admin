@@ -4,11 +4,21 @@ declare(strict_types=1);
 
 namespace App\Observers;
 
+use App\Features\PostingPlans\Application\Support\PostingPlanDataValidator;
 use App\Models\AdminAuditLog;
 use App\Models\PostingPlan;
 
 class PostingPlanObserver
 {
+    public function saving(PostingPlan $postingPlan): void
+    {
+        app(PostingPlanDataValidator::class)->validate([
+            'timezone' => $postingPlan->timezone,
+            'quiet_hours_from' => $postingPlan->quiet_hours_from,
+            'quiet_hours_to' => $postingPlan->quiet_hours_to,
+        ]);
+    }
+
     public function created(PostingPlan $postingPlan): void
     {
         AdminAuditLog::logAction(
