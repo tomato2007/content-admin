@@ -1002,27 +1002,27 @@ Acceptance criteria:
 - зафиксировать, какие состояния считаются “уже стоят в очереди” и должны исключаться из повторной выборки
 
 ### Трекер выполнения Sprint 7
-- `[ ]` Шаг 1. Добавить `PostsSource` конфиг-контракт и `PostsRepository` для чтения из `posts_source -> public.posts`
-- `[ ]` Шаг 2. Реализовать валидатор/очистку текста и отбор кандидатов для text/media сценариев
-- `[ ]` Шаг 3. Реализовать транзакционный pick из `public.posts` через `FOR UPDATE SKIP LOCKED`
-- `[ ]` Шаг 4. Зафиксировать правила исключения уже поставленных в очередь записей: при генерации новых `PlannedPost` не переиспользовать source records, которые уже представлены в очереди в состояниях:
+- `[x]` Шаг 1. Добавить `PostsSource` конфиг-контракт и `PostsRepository` для чтения из `posts_source -> public.posts`
+- `[x]` Шаг 2. Реализовать валидатор/очистку текста и отбор кандидатов для text/media сценариев
+- `[x]` Шаг 3. Реализовать транзакционный pick из `public.posts` через `FOR UPDATE SKIP LOCKED`
+- `[x]` Шаг 4. Зафиксировать правила исключения уже поставленных в очередь записей: при генерации новых `PlannedPost` не переиспользовать source records, которые уже представлены в очереди в состояниях:
   `ожидание модерации` = `moderation_status=pending_review`
   `подтвержден, ожидает публикации` = `moderation_status=approved` + `status=scheduled`
-- `[ ]` Шаг 5. Добавить тесты на конкурентный pick, fallback `media -> text` и quiet hours контракты для source pool
+- `[x]` Шаг 5. Добавить тесты на конкурентный pick, fallback `media -> text` и quiet hours контракты для source pool
 
-### Sprint 8
+### Sprint 8в
 - добавить операторский flow генерации очереди из source pool
 - дать пользователю кнопку, которая создаёт следующие `10` постов для модерации
 - сделать generated queue items сразу доступными в moderation UI
 
 ### Трекер выполнения Sprint 8
-- `[ ]` Шаг 1. Добавить application action `GeneratePlannedPostsFromSourceAction` с параметром `limit=10`
-- `[ ]` Шаг 2. При генерации создавать новые `PlannedPost` с source binding (`source_type`, `source_id`, `content_snapshot`) и статусом:
+- `[x]` Шаг 1. Добавить application action `GeneratePlannedPostsFromSourceAction` с параметром `limit=10`
+- `[x]` Шаг 2. При генерации создавать новые `PlannedPost` с source binding (`source_type`, `source_id`, `content_snapshot`) и статусом:
   `ожидание модерации` = `moderation_status=pending_review`
   `status=scheduled|draft` определить и зафиксировать отдельно, но user-facing состояние должно быть “ожидание модерации”
-- `[ ]` Шаг 3. Добавить в UI аккаунта/очереди кнопку `Generate next 10 posts` с результатом по счётчикам: создано, пропущено, нет кандидатов
-- `[ ]` Шаг 4. Сделать generated posts сразу видимыми в relation manager очереди и фильтрах модерации
-- `[ ]` Шаг 5. Добавить audit log и posting history-safe метаданные для операций batch generation
+- `[x]` Шаг 3. Добавить в UI аккаунта/очереди кнопку `Generate next 10 posts` с результатом по счётчикам: создано, пропущено, нет кандидатов
+- `[x]` Шаг 4. Сделать generated posts сразу видимыми в relation manager очереди и фильтрах модерации
+- `[x]` Шаг 5. Добавить audit log и posting history-safe метаданные для операций batch generation
 
 ### Sprint 9
 - довести workflow модерации generated queue до production-ready состояния

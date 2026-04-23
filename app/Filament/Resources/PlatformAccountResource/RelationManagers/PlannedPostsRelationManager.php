@@ -12,6 +12,7 @@ use App\Features\PlannedPosts\Application\Actions\RejectPlannedPostAction;
 use App\Features\PlannedPosts\Application\Actions\ReplacePlannedPostAction;
 use App\Features\PlannedPosts\Application\Actions\RequestPlannedPostDeletionAction;
 use App\Features\PlannedPosts\Application\Actions\ReschedulePlannedPostAction;
+use App\Features\PostsSource\Application\Actions\GeneratePlannedPostsFromSourceAction;
 use App\Features\Publishing\Application\Actions\DryRunPlannedPostAction;
 use App\Features\Publishing\Application\Actions\PublishPlannedPostAction;
 use App\Models\PlannedPost;
@@ -101,6 +102,39 @@ class PlannedPostsRelationManager extends RelationManager
                     ->options(ModerationStatus::options()),
             ])
             ->headerActions([
+                Tables\Actions\Action::make('generateFromSource')
+                    ->label('Generate next 10 posts')
+                    ->icon('heroicon-o-sparkles')
+                    ->color('primary')
+                    ->requiresConfirmation()
+                    ->action(function (): void {
+                        try {
+                            $result = app(GeneratePlannedPostsFromSourceAction::class)->execute(
+                                $this->getPlatformAccount(),
+                                $this->getActor(),
+                                10,
+                                false,
+                            );
+
+                            Notification::make()
+                                ->title('Source queue generation completed')
+                                ->body(sprintf(
+                                    'Created: %d, skipped: %d, no candidates: %d',
+                                    $result['created'],
+                                    $result['skipped'],
+                                    $result['no_candidates'],
+                                ))
+                                ->success()
+                                ->send();
+                        } catch (\Throwable $e) {
+                            Notification::make()
+                                ->title('Source queue generation failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    })
+                    ->visible(fn (): bool => $this->canManageQueue()),
                 Tables\Actions\CreateAction::make()
                     ->label('Add planned post')
                     ->visible(fn (): bool => $this->canManageQueue()),
