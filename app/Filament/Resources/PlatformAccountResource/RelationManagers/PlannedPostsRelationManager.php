@@ -72,11 +72,17 @@ class PlannedPostsRelationManager extends RelationManager
                     ->label('Scheduled')
                     ->dateTime()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('status')
+                Tables\Columns\TextColumn::make('queue_state')
+                    ->label('Queue state')
+                    ->state(fn (PlannedPost $record): string => $record->queueStateLabel())
                     ->badge(),
+                Tables\Columns\TextColumn::make('status')
+                    ->badge()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('moderation_status')
                     ->badge()
-                    ->label('Moderation'),
+                    ->label('Moderation')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('content_preview')
                     ->label('Content')
                     ->state(fn (PlannedPost $record): string => $record->contentPreview(90))

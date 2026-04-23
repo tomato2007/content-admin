@@ -28,7 +28,33 @@ See [.env.example](.env.example) for the full variable list.
 
 - Manual `PlannedPost` creation, moderation, posting history, and Telegram Bot API manual publish are implemented.
 - `posts_source` configuration for `anecdots.public.posts` is now present in project config.
-- Automatic ingestion/pick-from-pool from `public.posts` is not implemented yet; [docs/prod-db.md](docs/prod-db.md) remains the source-of-truth spec for that work.
+- Generated moderation queue from `posts_source` is implemented: operators can create the next 10 candidate posts from the source pool and review them before approval.
+- Generated source posts enter the queue as `draft + pending_review`, then move to `approved + scheduled` after moderation approval when a schedule is present.
+- The scheduler only auto-publishes `approved + scheduled` posts, which keeps generated drafts out of automatic publishing until moderation is complete.
+
+## Generated queue workflow
+
+User-facing queue states are:
+
+- `Ожидание модерации` → `moderation_status=pending_review`
+- `Подтвержден, ожидает публикации` → `moderation_status=approved` + `status=scheduled`
+- `Опубликован` → `status=published`
+- `Ошибка публикации` → `status=failed`
+
+Operator flow:
+
+1. Open a platform account queue.
+2. Use `Generate next 10 posts` to create candidate queue items from `posts_source`.
+3. Review generated items in the moderation queue.
+4. Approve items that should be published. If `scheduled_at` is set, approval moves them into `approved + scheduled`.
+5. Scheduled publishing picks only approved scheduled posts, so pending-review generated items are never auto-published prematurely.
+
+If new candidates stop appearing, check:
+
+- `posts_source` connection settings
+- whether source records already exist in queue states `pending_review` or `approved + scheduled`
+- whether source content remains eligible after cleaning/validation
+- whether generation is being attempted during source-pool quiet hours
 
 ## Run locally
 

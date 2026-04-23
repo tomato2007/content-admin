@@ -1030,18 +1030,18 @@ Acceptance criteria:
 - встроить generated queue в existing publish scheduler без дублей и повторной выборки source posts
 
 ### Трекер выполнения Sprint 9
-- `[ ]` Шаг 1. Добавить user-facing labels/status chips для:
+- `[x]` Шаг 1. Добавить user-facing labels/status chips для:
   `ожидание модерации`
   `подтвержден, ожидает публикации`
   `опубликован`
   `ошибка публикации`
-- `[ ]` Шаг 2. Зафиксировать approve-flow generated постов: после подтверждения пост переходит в состояние
+- `[x]` Шаг 2. Зафиксировать approve-flow generated постов: после подтверждения пост переходит в состояние
   `подтвержден, ожидает публикации` = `moderation_status=approved` + `status=scheduled`
-- `[ ]` Шаг 3. Встроить generated queue items в scheduler так, чтобы автопубликация брала только `approved + scheduled` посты
-- `[ ]` Шаг 4. Гарантировать, что source selection для следующих batch generation не подбирает source records, уже находящиеся в очереди или уже опубликованные
-- `[ ]` Шаг 5. Добавить end-to-end тесты:
+- `[x]` Шаг 3. Встроить generated queue items в scheduler так, чтобы автопубликация брала только `approved + scheduled` посты
+- `[x]` Шаг 4. Гарантировать, что source selection для следующих batch generation не подбирает source records, уже находящиеся в очереди или уже опубликованные
+- `[x]` Шаг 5. Добавить end-to-end тесты:
   генерация `10` постов -> модерация части -> ручная/авто публикация -> отсутствие дублей в очереди и в source marking
-- `[ ]` Шаг 6. Обновить runbook и operator docs: как генерировать очередь, что означают статусы, что проверять если новых кандидатов нет
+- `[x]` Шаг 6. Обновить runbook и operator docs: как генерировать очередь, что означают статусы, что проверять если новых кандидатов нет
 
 ---
 

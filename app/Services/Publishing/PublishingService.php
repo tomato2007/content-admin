@@ -9,6 +9,7 @@ use App\Enums\PlannedPostStatus;
 use App\Enums\PostingHistoryStatus;
 use App\Models\PlannedPost;
 use App\Models\PostingHistory;
+use App\Features\Publishing\Application\Actions\MarkSourcePostPublishedAction;
 use App\Services\Publishing\Contracts\PublisherDriverInterface;
 use App\Services\Publishing\Contracts\PublisherDriverResolverInterface;
 use App\Services\Publishing\Data\DryRunResult;
@@ -21,6 +22,7 @@ class PublishingService
 {
     public function __construct(
         private readonly PublisherDriverResolverInterface $publisherDriverResolver,
+        private readonly MarkSourcePostPublishedAction $markSourcePostPublishedAction,
     ) {}
 
     public function dryRun(PlannedPost $plannedPost): DryRunResult
@@ -81,6 +83,10 @@ class PublishingService
                 'status' => $result->success ? PlannedPostStatus::Published : PlannedPostStatus::Failed,
                 'moderation_status' => $result->success ? ModerationStatus::Approved : $plannedPost->moderation_status,
             ]);
+
+            if ($result->success) {
+                $this->markSourcePostPublishedAction->execute($plannedPost->fresh());
+            }
 
             return $result;
         });

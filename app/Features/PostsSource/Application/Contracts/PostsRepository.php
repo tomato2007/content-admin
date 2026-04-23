@@ -21,4 +21,6 @@ interface PostsRepository
      * @param  list<int>  $excludeSourceIds
      */
     public function pickUnpublished(bool $requireMedia = false, array $excludeSourceIds = []): ?SourcePost;
+
+    public function markPublished(int $id): void;
 }

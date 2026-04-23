@@ -94,6 +94,17 @@ class PlannedPost extends Model
             : $text;
     }
 
+    public function queueStateLabel(): string
+    {
+        return match (true) {
+            $this->moderation_status === ModerationStatus::PendingReview => 'Ожидание модерации',
+            $this->moderation_status === ModerationStatus::Approved && $this->status === PlannedPostStatus::Scheduled => 'Подтвержден, ожидает публикации',
+            $this->status === PlannedPostStatus::Published => 'Опубликован',
+            $this->status === PlannedPostStatus::Failed => 'Ошибка публикации',
+            default => ucfirst(str_replace('_', ' ', $this->moderation_status->value)).' / '.ucfirst(str_replace('_', ' ', $this->status->value)),
+        };
+    }
+
     public function isTerminalStatus(): bool
     {
         return in_array($this->status, [

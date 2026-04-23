@@ -77,6 +77,18 @@ final class DatabasePostsRepository implements PostsRepository
         return $row === null ? null : $this->mapRow($row);
     }
 
+    public function markPublished(int $id): void
+    {
+        $connection = $this->db->connection($this->config->connection);
+
+        $connection
+            ->table($this->config->tableReference($connection->getDriverName()))
+            ->where('id', $id)
+            ->update([
+                $this->config->publishedAtColumn => now(),
+            ]);
+    }
+
     private function baseQuery()
     {
         $connection = $this->db->connection($this->config->connection);
