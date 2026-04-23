@@ -1043,6 +1043,66 @@ Acceptance criteria:
   генерация `10` постов -> модерация части -> ручная/авто публикация -> отсутствие дублей в очереди и в source marking
 - `[x]` Шаг 6. Обновить runbook и operator docs: как генерировать очередь, что означают статусы, что проверять если новых кандидатов нет
 
+### Sprint 10
+- добавить production-grade observability для source pool, generation и publish flow
+- сделать smoke/health tooling для posts_source и generated queue
+- дать оператору быстрый способ понять, почему новые посты не появляются или не публикуются
+
+### Трекер выполнения Sprint 10
+- `[ ]` Шаг 1. Добавить структурные логи для generation, source pick, publish и source mark
+- `[ ]` Шаг 2. Добавить counters/metrics для source-pool flow (`attempts`, `published_count`, `no_candidates`, `skipped_quiet_hours`)
+- `[ ]` Шаг 3. Сделать artisan smoke command для `posts_source`
+- `[ ]` Шаг 4. Сделать operator health summary command по source pool, queue и recent publishing
+- `[ ]` Шаг 5. Добавить тесты на smoke/health сценарии
+
+### Sprint 11
+- улучшить operator UX для generated queue и moderation flow
+- дать более удобные фильтры, счётчики и batch-actions для работы с generated/manual постами
+- улучшить feedback в UI после generation и при пустом source pool
+
+### Трекер выполнения Sprint 11
+- `[ ]` Шаг 1. Добавить фильтры queue: `generated/manual`, `queue state`, `source_type`
+- `[ ]` Шаг 2. Добавить счётчики по queue states в UI аккаунта и/или relation manager
+- `[ ]` Шаг 3. Добавить bulk actions для moderation queue (`approve`, `reject`, `reschedule` где уместно)
+- `[ ]` Шаг 4. Улучшить generation feedback/history в UI
+- `[ ]` Шаг 5. Добавить operator-friendly empty/error states
+
+### Sprint 12
+- усилить доверие к конкурентности и source locking на реальном PostgreSQL
+- проверить `FOR UPDATE SKIP LOCKED` и marking source records после publish не только в sqlite-friendly контуре
+- закрепить PostgreSQL-specific integration confidence
+
+### Трекер выполнения Sprint 12
+- `[ ]` Шаг 1. Поднять integration tests под реальный PostgreSQL
+- `[ ]` Шаг 2. Проверить конкурентный pick несколькими воркерами
+- `[ ]` Шаг 3. Проверить source marking после publish на реальном pg
+- `[ ]` Шаг 4. Проверить idempotency/retry edge cases
+- `[ ]` Шаг 5. Зафиксировать результаты и ограничения в docs
+
+### Sprint 13
+- оформить полноценный operator runbook и supportability docs
+- описать штатный flow generation → moderation → scheduled publish
+- описать, как диагностировать отсутствие кандидатов, stuck states и failed публикации
+
+### Трекер выполнения Sprint 13
+- `[ ]` Шаг 1. Создать `docs/runbook.md`
+- `[ ]` Шаг 2. Описать типовые инциденты и действия оператора
+- `[ ]` Шаг 3. Описать flow generation → moderation → scheduled publish
+- `[ ]` Шаг 4. Описать recovery для failed/stuck posts
+- `[ ]` Шаг 5. Обновить README и cross-links на runbook
+
+### Sprint 14
+- финальная шлифовка проекта до release-ready состояния
+- убрать мелкие архитектурные шероховатости и дубли
+- провести финальный regression pass и release-readiness checklist
+
+### Трекер выполнения Sprint 14
+- `[ ]` Шаг 1. Архитектурная чистка source/generation workflow
+- `[ ]` Шаг 2. Проверить consistency naming и enum vocabulary
+- `[ ]` Шаг 3. Пройтись по тестам и удалить лишние дубли
+- `[ ]` Шаг 4. Провести финальный regression pass
+- `[ ]` Шаг 5. Собрать release-readiness checklist
+
 ---
 
 ## Что я считаю правильным компромиссом
