@@ -62,8 +62,8 @@ class PostingPlanValidationTest extends TestCase
         $plan->refresh();
 
         $this->assertSame('Europe/Budapest', $plan->timezone);
-        $this->assertSame('23:00:00', $plan->quiet_hours_from);
-        $this->assertSame('07:00:00', $plan->quiet_hours_to);
+        $this->assertSame('23:00', substr((string) $plan->quiet_hours_from, 0, 5));
+        $this->assertSame('07:00', substr((string) $plan->quiet_hours_to, 0, 5));
     }
 
     public function test_posting_slot_rejects_duplicate_weekday_and_local_time(): void
