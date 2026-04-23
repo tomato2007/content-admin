@@ -46,6 +46,37 @@ final class DatabasePostsRepository implements PostsRepository
             ->count();
     }
 
+    public function pickUnpublished(bool $requireMedia = false, array $excludeSourceIds = []): ?SourcePost
+    {
+        $connection = $this->db->connection($this->config->connection);
+        $query = $connection
+            ->table($this->config->tableReference($connection->getDriverName()))
+            ->select([
+                'id',
+                $this->config->contentColumn,
+                $this->config->mediaUrlColumn,
+                $this->config->publishedAtColumn,
+            ])
+            ->whereNull($this->config->publishedAtColumn)
+            ->orderBy('id');
+
+        if ($requireMedia) {
+            $query->whereNotNull($this->config->mediaUrlColumn);
+        }
+
+        if ($excludeSourceIds !== []) {
+            $query->whereNotIn('id', $excludeSourceIds);
+        }
+
+        if ($connection->getDriverName() === 'pgsql') {
+            $query->lock('FOR UPDATE SKIP LOCKED');
+        }
+
+        $row = $query->first();
+
+        return $row === null ? null : $this->mapRow($row);
+    }
+
     private function baseQuery()
     {
         $connection = $this->db->connection($this->config->connection);

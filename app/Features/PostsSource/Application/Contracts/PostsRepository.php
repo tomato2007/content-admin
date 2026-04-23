@@ -16,4 +16,9 @@ interface PostsRepository
     public function findById(int $id): ?SourcePost;
 
     public function countUnpublished(): int;
+
+    /**
+     * @param  list<int>  $excludeSourceIds
+     */
+    public function pickUnpublished(bool $requireMedia = false, array $excludeSourceIds = []): ?SourcePost;
 }
